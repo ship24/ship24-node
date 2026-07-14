@@ -1,0 +1,13 @@
+node_modules/
+package-lock.json
+yarn.lock
+bun.lock*
+dist/
+build/
+coverage/
+docs-api/
+*.tgz
+.env*
+*.log
+.DS_Store
+Thumbs.db

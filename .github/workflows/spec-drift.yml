@@ -1,0 +1,35 @@
+name: Spec drift
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Fetch the canonical spec
+        run: |
+          curl -fsSL https://docs.ship24.com/assets/openapi/ship24-tracking-api.yaml \
+            -o spec/ship24-tracking-api.yaml
+      - name: Open a PR if the vendored spec drifted
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6.1.0
+        with:
+          branch: chore/spec-drift
+          title: 'chore: sync vendored Ship24 OpenAPI spec'
+          commit-message: 'chore: sync vendored Ship24 OpenAPI spec'
+          labels: spec-drift
+          body: |
+            The canonical Ship24 OpenAPI spec differs from the vendored copy.
+
+            Reviewer checklist:
+            - [ ] `npm run generate` to refresh `src/generated/schema.d.ts` (drift reference)
+            - [ ] review the diff and reconcile the hand-written types in `src/types/*`
+            - [ ] update the resource facade if endpoints/params changed
+            - [ ] add a changeset if the public surface changes

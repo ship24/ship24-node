@@ -64,7 +64,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.17.0",
+    "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.27.0",
     "@types/node": "^22.10.0",

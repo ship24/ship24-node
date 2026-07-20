@@ -36,7 +36,7 @@ components:
       type: apiKey
       in: header
       description: |-
-        The Ship24 API uses API keys to authenticate requests. You can [view and manage them in your Dashboard](https://dashboard.ship24.com/integrations/api-keys). A `Default` API key is created after you subscribe to a plan.
+        The Ship24 API uses API keys to authenticate requests. You can [view and manage them in your Dashboard](https://dashboard.ship24.com/integrations/api-keys). A `Default` API key is created after you subscribe to a plan. You can have up to 20 active API keys per account.
 
         To authenticate your requests, include an `Authorization` HTTP header to all your requests with the following value: `Bearer your_api_key`. (Replace `your_api_key` by the one from your dashboard and don't forget the `Bearer` prefix.)
   schemas:

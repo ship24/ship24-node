@@ -1,6 +1,14 @@
 import type { Tracker } from './domain.js';
 import type { CreateTrackerRequest } from './requests.js';
 
+/** Result of `trackers.update`. */
+export interface UpdatedTracker extends Tracker {
+  /** Returned only when a non-empty `recipient.name` was sent in the update. */
+  recipient?: {
+    name?: string;
+  };
+}
+
 /** A single `{ code, message }` error item from the API. */
 export interface ApiErrorItem {
   code: string;

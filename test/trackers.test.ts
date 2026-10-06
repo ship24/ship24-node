@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Tracking } from '../src/index.js';
 import { trackerFixture, trackingFixture } from './fixtures.js';
 import { jsonResponse, makeClient } from './helpers.js';
 
@@ -51,12 +52,46 @@ describe('trackers', () => {
     expect(calls[0]?.init.method).toBe('PATCH');
   });
 
+  it('update → sends courierName/trackingUrl/recipient and returns the recipient', async () => {
+    const { client, calls } = makeClient(() =>
+      jsonResponse(200, { data: { tracker: { ...trackerFixture, recipient: { name: 'Marc' } } } }),
+    );
+    const body = {
+      courierName: 'USPS Standard',
+      trackingUrl: 'https://tools.usps.com/go/TrackConfirmAction?tLabels=9400115901047177598206',
+      recipient: { name: 'Marc' },
+    };
+    const result = await client.trackers.update(trackerFixture.trackerId, body);
+    expect(JSON.parse(String(calls[0]?.init.body))).toEqual(body);
+    expect(result.recipient?.name).toBe('Marc');
+    expect(result.trackerId).toBe(trackerFixture.trackerId);
+  });
+
   it('getResults → unwraps data.trackings', async () => {
     const { client } = makeClient(() =>
       jsonResponse(200, { data: { trackings: [trackingFixture] } }),
     );
     const results = await client.trackers.getResults(trackerFixture.trackerId);
     expect(results).toHaveLength(1);
+  });
+
+  it('getResults → keeps add-on fields such as aiPredictiveDeliveryDate', async () => {
+    const aiPredictiveDeliveryDate = {
+      from: '2021-03-04T17:00:00+01:00',
+      to: '2021-03-04T18:00:00+01:00',
+    };
+    const tracking: Tracking = {
+      ...trackingFixture,
+      shipment: {
+        ...trackingFixture.shipment,
+        delivery: { ...trackingFixture.shipment.delivery, aiPredictiveDeliveryDate },
+      },
+    };
+    const { client } = makeClient(() => jsonResponse(200, { data: { trackings: [tracking] } }));
+    const results = await client.trackers.getResults(trackerFixture.trackerId);
+    expect(results[0]?.shipment.delivery.aiPredictiveDeliveryDate).toEqual(
+      aiPredictiveDeliveryDate,
+    );
   });
 
   it('getResultsByTrackingNumber → hits the search path', async () => {

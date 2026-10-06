@@ -11,7 +11,12 @@ import type {
   ListTrackersParams,
   UpdateTrackerRequest,
 } from '../types/requests.js';
-import type { BulkCreateResult, ResendWebhooksResult, WebhookHistory } from '../types/responses.js';
+import type {
+  BulkCreateResult,
+  ResendWebhooksResult,
+  UpdatedTracker,
+  WebhookHistory,
+} from '../types/responses.js';
 
 /** Per-shipment tracker operations. */
 export class TrackersResource {
@@ -52,7 +57,7 @@ export class TrackersResource {
   }
 
   /**
-   * Create up to 100 trackers in one request.
+   * Create 1–100 trackers in one request.
    *
    * This **never throws on the bulk envelope**: HTTP 201/207/400/403 all resolve
    * to a {@link BulkCreateResult} — inspect `status` and per-item `errors`. Only
@@ -108,7 +113,7 @@ export class TrackersResource {
     trackerId: string,
     body: UpdateTrackerRequest,
     opts?: TrackerLookupOptions,
-  ): Promise<Tracker> {
+  ): Promise<UpdatedTracker> {
     return this.transport.request(
       {
         method: 'PATCH',
@@ -117,7 +122,7 @@ export class TrackersResource {
         query: { searchBy: opts?.searchBy },
         successCodes: [200],
         defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
-        unwrap: (p) => (p as { data: { tracker: Tracker } }).data.tracker,
+        unwrap: (p) => (p as { data: { tracker: UpdatedTracker } }).data.tracker,
       },
       opts,
     );

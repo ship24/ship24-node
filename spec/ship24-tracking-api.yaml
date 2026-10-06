@@ -36,7 +36,7 @@ components:
       type: apiKey
       in: header
       description: |-
-        The Ship24 API uses API keys to authenticate requests. You can [view and manage them in your Dashboard](https://dashboard.ship24.com/integrations/api-keys). A `Default` API key is created after you subscribe to a plan.
+        The Ship24 API uses API keys to authenticate requests. You can [view and manage them in your Dashboard](https://dashboard.ship24.com/integrations/api-keys). A `Default` API key is created after you subscribe to a plan. You can have up to 20 active API keys per account.
 
         To authenticate your requests, include an `Authorization` HTTP header to all your requests with the following value: `Bearer your_api_key`. (Replace `your_api_key` by the one from your dashboard and don't forget the `Bearer` prefix.)
   schemas:
@@ -96,6 +96,47 @@ components:
         - clientTrackerId
         - isSubscribed
         - isTracked
+        - createdAt
+    webhook-tracker:
+      type: object
+      x-internal: true
+      title: Webhook tracker
+      properties:
+        trackerId:
+          type: string
+          description: The id of the tracker that is providing this tracking.
+          example: 26148317-7502-d3ac-44a9-546d240ac0dd
+        trackingNumber:
+          type: string
+          description: The tracking number which the tracker is following.
+          example: "9400115901047177598206"
+        shipmentReference:
+          type:
+            - string
+            - "null"
+          description: The `shipmentReference` you provided at the tracker's creation.
+          example: c6e4fef4-a816-b68f-4024-3b7e4c5a9f81
+        clientTrackerId:
+          type:
+            - string
+            - "null"
+          description: The `clientTrackerId` you provided at the tracker's creation.
+          example: 3fa99515-3ca0-4901-85bb-056ee016799b
+        isSubscribed:
+          type: boolean
+          description: Indicates whether the tracker is active. A value of `false` means the tracker is archived and will not be used for tracking.
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+          description: "The date and time at which the tracker was created."
+          example: "2021-03-10T05:13:00.000Z"
+      required:
+        - trackerId
+        - trackingNumber
+        - shipmentReference
+        - clientTrackerId
+        - isSubscribed
         - createdAt
     tracking:
       type: object
@@ -395,7 +436,7 @@ components:
         topic:
           type: string
           example: "tracking/events"
-          description: Topic of the webhook, which can be used to filter webhooks by topic.
+          description: "Topic of the webhook: `tracking/events` for tracking results, `tracking/pod` for proofs of delivery."
     shipment:
       type: object
       x-internal: true
@@ -466,6 +507,29 @@ components:
                   description: "The latest estimated delivery date of the shipment, if provided by the courier. Format: [Logistics date and time](http://docs.ship24.com/data-format#logistics-date-and-time)"
                   examples:
                     - "2021-03-04T18:00:00"
+            aiPredictiveDeliveryDate:
+              type: object
+              description: |-
+                Delivery date range predicted by Ship24 from the courier's historical performance on the shipment's route and current milestone.
+
+                > 🛑 Requires the **AI Predictive Delivery Date** add-on option ([Subscriptions](https://dashboard.ship24.com/general/subscriptions)). Absent from the payload, not `null`, when you are not subscribed or no prediction is available. See [optional fields](https://docs.ship24.com/data-format#optional-fields-add-on-options).
+              properties:
+                from:
+                  type:
+                    - string
+                    - "null"
+                  format: logistic-date-time
+                  description: "Earliest predicted delivery date, with its UTC offset. Format: [Logistics date and time](http://docs.ship24.com/data-format#logistics-date-and-time)"
+                  examples:
+                    - "2021-03-04T17:00:00+01:00"
+                to:
+                  type:
+                    - string
+                    - "null"
+                  format: logistic-date-time
+                  description: "Latest predicted delivery date, with its UTC offset. Format: [Logistics date and time](http://docs.ship24.com/data-format#logistics-date-and-time)"
+                  examples:
+                    - "2021-03-04T18:00:00+01:00"
             service:
               type:
                 - string
@@ -478,6 +542,7 @@ components:
                 - "null"
               description: Name of the person who signed for the shipment.
               example: John Doe
+              deprecated: true
         trackingNumbers:
           type:
             - array
@@ -643,24 +708,35 @@ components:
           description: Tracking number of the shipment.
         shipmentReference:
           type: string
+          maxLength: 100
           example: c6e4fef4-a816-b68f-4024-3b7e4c5a9f81
           description: Your reference for this shipment. Will be provided in our webhooks or API responses for this tracker.
         clientTrackerId:
           type: string
+          maxLength: 100
           example: 3fa99515-3ca0-4901-85bb-056ee016799b
           description: Your unique identifier for this shipment. Will be provided in our webhooks or API responses for this tracker.
         originCountryCode:
           type: string
+          minLength: 2
+          maxLength: 3
+          pattern: "^[A-Z]{2,3}$"
           example: CN
           description: Sender country code.
           format: ISO 3166-1 alpha-2/alpha-3
         destinationCountryCode:
           type: string
+          minLength: 2
+          maxLength: 3
+          pattern: "^[A-Z]{2,3}$"
           example: US
           description: "Recipient country code - \U0001F4CC Recommended to improve tracking accuracy"
           format: ISO 3166-1 alpha-2/alpha-3
         destinationPostCode:
           type: string
+          minLength: 1
+          maxLength: 32
+          pattern: '^[A-Za-z0-9 _\-\./]+$'
           example: "94901"
           description: "Recipient Post code (or ZIP code)  - \U0001F4CC Recommended to improve tracking accuracy"
         shippingDate:
@@ -685,18 +761,22 @@ components:
             type: string
         courierName:
           type: string
+          maxLength: 200
           description: Courier name and/or service.
           example: USPS Standard
         trackingUrl:
           type: string
+          maxLength: 1000
           description: Tracking URL of the courier.
           example: "https://tools.usps.com/go/TrackConfirmAction?tLabels=9400115901047177598206"
         orderNumber:
           type: string
+          maxLength: 50
           description: Order number in case of an eCommerce order.
           example: DF14R2022
         title:
           type: string
+          maxLength: 255
           example: Nike shoes for Marc
           description: "Title for this shipment, visible on the Tracking Dashboard."
         recipient:
@@ -704,13 +784,15 @@ components:
           properties:
             email:
               type: string
+              maxLength: 254
               example: recipient@email.com
-              description: "Recipient email, used for optional email notifications."
+              description: "Recipient email. Used for email notifications."
               format: email
             name:
               type: string
+              maxLength: 100
               example: Marc
-              description: "Recipient name, used for optional email notifications."
+              description: "Recipient name. Used for email notifications and courier-restricted tracking data."
         settings:
           type: object
           properties:
@@ -724,6 +806,8 @@ components:
       title: Bulk create trackers request
       x-internal: true
       type: array
+      minItems: 1
+      maxItems: 100
       items:
         $ref: "#/components/schemas/tracker-create-request"
       required: true
@@ -1112,6 +1196,8 @@ webhooks:
       description: |-
         > This endpoint is **NOT** part of the Ship24 API but rather **has to be implemented on your side** in order to receive webhook messages.
         Ship24 will be pushing tracking results to your endpoint using a `trackings` array containing `tracking` objects. The `tracking` object is detailed below as well as in [Schemas > Tracking](/schemas/tracking). [Learn how to set up and use webhooks](https://docs.ship24.com/webhooks/overview).
+
+        > Note: `shipment.delivery.aiPredictiveDeliveryDate` is an [optional field](https://docs.ship24.com/data-format#optional-fields-add-on-options) and is absent from the payload unless you subscribed to its related add-on option.
       requestBody:
         content:
           application/json:
@@ -1126,7 +1212,7 @@ webhooks:
                       metadata:
                         $ref: "#/components/schemas/metadata"
                       tracker:
-                        $ref: "#/components/schemas/tracker"
+                        $ref: "#/components/schemas/webhook-tracker"
                       shipment:
                         $ref: "#/components/schemas/shipment"
                       events:
@@ -1186,8 +1272,8 @@ webhooks:
                           statusCode: delivery_delivered
                           statusCategory: delivery
                           statusMilestone: delivered
-                          "hasNoTime": false,
-                          "utcOffset": null,
+                          hasNoTime: false
+                          utcOffset: null
                           "datetime": "2025-03-04T17:12:57.000Z"
                       statistics:
                         timestamps:
@@ -1210,6 +1296,100 @@ webhooks:
         "200":
           description: Indicates that your server successfully processed Ship24's request.
       operationId: receive-webhooks-tracking-results
+  /your-pod-endpoint:
+    post:
+      summary: Receive webhooks - Proof of Delivery
+      description: |-
+        > This endpoint is **NOT** part of the Ship24 API but rather **has to be implemented on your side** in order to receive webhook messages.
+        Ship24 pushes the proof of delivery of a shipment once retrieved from the courier, using a `trackings` array that always contains a single `tracking` object. [Learn more about Proof of Delivery webhooks](https://docs.ship24.com/webhooks/proof-of-delivery).
+
+        > 🛑 Requires the **Proof of Delivery** add-on option ([Subscriptions](https://dashboard.ship24.com/general/subscriptions)) and a _Proof of Delivery Webhook URL_ [configured in your dashboard](https://dashboard.ship24.com/integrations/webhook/).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                trackings:
+                  type: array
+                  minItems: 1
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      metadata:
+                        $ref: "#/components/schemas/metadata"
+                      tracker:
+                        $ref: "#/components/schemas/webhook-tracker"
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            enum:
+                              - found
+                              - unavailable
+                            description: "`found` when a proof of delivery was retrieved, `unavailable` when the courier returned none."
+                          courier:
+                            type: string
+                            description: "Internal code of the source the proof of delivery was retrieved from, same values as `sourceCode` in tracking events. Those codes may evolve at any point in time."
+                            example: ups-tracking
+                          content:
+                            type: object
+                            properties:
+                              type:
+                                type: string
+                                enum:
+                                  - text/plain
+                                  - text/html
+                                  - application/pdf
+                                  - image/png
+                                  - image/jpeg
+                                description: "MIME type of the proof of delivery. Text types carry it in `text`, the others as a file in `downloadUrl`."
+                              text:
+                                type:
+                                  - string
+                                  - "null"
+                                description: Signatory name or delivery note, for text types.
+                              downloadUrl:
+                                type:
+                                  - string
+                                  - "null"
+                                description: Link to download the proof of delivery file, valid for 7 days.
+            examples:
+              Valid request:
+                value:
+                  trackings:
+                    - metadata:
+                        generatedAt: "2025-03-05T09:41:12.000Z"
+                        messageId: "8d1b3c1e-6a3f-4d2b-9f0e-2c7a1b5e9d44"
+                        topic: "tracking/pod"
+                      tracker:
+                        trackerId: 26148317-7502-d3ac-44a9-546d240ac0dd
+                        trackingNumber: "1Z999AA10123456784"
+                        shipmentReference: c6e4fef4-a816-b68f-4024-3b7e4c5a9f81
+                        clientTrackerId: 3fa99515-3ca0-4901-85bb-056ee016799b
+                        isSubscribed: true
+                        createdAt: "2025-03-01T03:16:22.000Z"
+                      data:
+                        status: found
+                        courier: ups-tracking
+                        content:
+                          type: application/pdf
+                          text: null
+                          downloadUrl: "<download_url>"
+        description: "Ship24 will send the following JSON body:"
+      parameters:
+        - name: Authorization
+          in: header
+          schema:
+            type: string
+          description: Ship24 will send your allocated webhook secret in each request.
+          example: Bearer your_webhook_secret
+      responses:
+        "200":
+          description: Indicates that your server successfully processed Ship24's request.
+      operationId: receive-webhooks-proof-of-delivery
 paths:
   /public/v1/trackers:
     post:
@@ -1314,24 +1494,27 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: The page index, starting from 1.
+            default: 1
+          description: The page index.
           example: 1
-          required: true
+          required: false
         - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
             maximum: 500
+            default: 100
           description: The maximum number of trackers returned per page.
           example: 100
-          required: true
+          required: false
         - name: sort
           in: query
           schema:
             type: integer
             enum: [1, -1]
-          description: Defines the sorting order of trackers. Use `1` for ascending (`createdAt` oldest first) and `-1` for descending (`createdAt` newest first). The default is ascending (`1`) to ensure stable pagination.
+            default: 1
+          description: Defines the sorting order of trackers. Use `1` for ascending (oldest tracker first) and `-1` for descending (newest tracker first). The default is ascending (`1`) to ensure stable pagination.
           example: 1
           required: false
       responses:
@@ -1653,6 +1836,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 100
           required: true
           description: "**Required** Id of the tracker, provided by Ship24 at creation. `clientTrackerId` can also be used in this field by employing the `searchBy` parameter."
           example: 26148317-7502-d3ac-44a9-546d240ac0dd
@@ -1724,16 +1908,25 @@ paths:
                     type: string
                 originCountryCode:
                   type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
                   example: CN
                   description: Sender country code.
                   format: ISO 3166-1 alpha-2/alpha-3
                 destinationCountryCode:
                   type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
                   example: US
                   description: "Recipient country code - \U0001F4CC Recommended to improve tracking accuracy"
                   format: ISO 3166-1 alpha-2/alpha-3
                 destinationPostCode:
                   type: string
+                  minLength: 1
+                  maxLength: 32
+                  pattern: '^[A-Za-z0-9 _\-\./]+$'
                   example: "94901"
                   description: "Recipient Post code (or ZIP code)  - \U0001F4CC Recommended to improve tracking accuracy"
                 shippingDate:
@@ -1745,6 +1938,25 @@ paths:
                     - "2021-03-01T11:09:00"
                     - "2021-03-01T11:09:00+02:00"
                   description: "Date at which the shipment has been shipped  - \U0001F4CC Recommended to improve tracking accuracy: providing the shipping date helps us accurately identify the shipment and improves our ability to retrieve the correct data. However, an inaccurate shipping date could cause our system to exclude the right shipment. Therefore, please ensure the provided shipping date aligns closely with the actual shipment date, give or take a few days. [Format](http://docs.ship24.com/data-format#logistics-date-and-time)"
+                courierName:
+                  type: string
+                  maxLength: 200
+                  description: Courier name and/or service.
+                  example: USPS Standard
+                trackingUrl:
+                  type: string
+                  maxLength: 1000
+                  description: Tracking URL of the courier.
+                  example: "https://tools.usps.com/go/TrackConfirmAction?tLabels=9400115901047177598206"
+                recipient:
+                  type: object
+                  description: "Information on the recipient. Only the `name` property can be updated, `email` is not patchable."
+                  properties:
+                    name:
+                      type: string
+                      maxLength: 100
+                      example: Marc
+                      description: "Recipient name. Used for email notifications and courier-restricted tracking data."
             examples:
               Patching:
                 value:
@@ -1755,7 +1967,9 @@ paths:
                   shippingDate: "2021-03-01T11:09:00.000Z"
                   courierCode:
                     - us-post
-        description: "Only the following property can be updated on a Tracker:"
+                  recipient:
+                    name: Marc
+        description: "Only the following properties can be updated on a Tracker:"
       parameters:
         - name: Content-Type
           in: header
@@ -1774,6 +1988,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 100
           required: true
           example: 26148317-7502-d3ac-44a9-546d240ac0dd
           description: "**Required** Id of the tracker, provided by Ship24 at creation. `clientTrackerId` can also be used in this field by employing the `searchBy` parameter."
@@ -1789,7 +2004,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/tracker"
+                allOf:
+                  - $ref: "#/components/schemas/tracker"
+                  - type: object
+                    properties:
+                      recipient:
+                        type: object
+                        description: "Information on the recipient. Only returned if a non-empty `recipient.name` was provided in the request."
+                        properties:
+                          name:
+                            type: string
+                            example: Marc
+                            description: "Recipient name."
               examples:
                 Successfully updated:
                   value:
@@ -1802,6 +2028,8 @@ paths:
                         isSubscribed: true
                         isTracked: true
                         createdAt: "2021-03-10T05:13:00.000Z"
+                        recipient:
+                          name: Marc
         "400":
           description: Bad Request
           content:
@@ -1839,6 +2067,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 50
           required: true
           description: "**Required** Tracking number of the parcel."
           example: "9400115901047177598206"
@@ -1895,6 +2124,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 100
           required: true
           description: "**Required** Id of the tracker, provided by Ship24 at creation. `clientTrackerId` can also be used in this field by employing the `searchBy` parameter."
           example: 26148317-7502-d3ac-44a9-546d240ac0dd
@@ -2068,16 +2298,25 @@ paths:
                   description: Tracking number of the shipment.
                 originCountryCode:
                   type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
                   example: CN
                   description: "Sender country code - \U0001F4CC Recommended to improve tracking accuracy"
                   format: ISO 3166-1 alpha-2/alpha-3
                 destinationCountryCode:
                   type: string
+                  minLength: 2
+                  maxLength: 3
+                  pattern: "^[A-Z]{2,3}$"
                   example: US
                   description: "Recipient country code - \U0001F4CC Recommended to improve tracking accuracy"
                   format: ISO 3166-1 alpha-2/alpha-3
                 destinationPostCode:
                   type: string
+                  minLength: 1
+                  maxLength: 32
+                  pattern: '^[A-Za-z0-9 _\-\./]+$'
                   example: "94901"
                   description: "Recipient Post code (or ZIP code) - \U0001F4CC Recommended to improve tracking accuracy"
                 shippingDate:
@@ -2094,6 +2333,14 @@ paths:
                     - array
                     - string
                   description: "Code of the courier(s) handling the shipment (Up to 3 max) (see Couriers list section)  - \U0001F4CC Recommended to improve tracking accuracy"
+                  example:
+                    - us-post
+                  minItems: 0
+                  maxItems: 3
+                  items:
+                    type: string
+              required:
+                - trackingNumber
       parameters:
         - name: Content-Type
           in: header
@@ -2307,6 +2554,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 100
           required: true
           description: "**Required** Id of the tracker, provided by Ship24 at creation. `clientTrackerId` can also be used in this field by employing the `searchBy` parameter."
           example: 26148317-7502-d3ac-44a9-546d240ac0dd
@@ -2360,6 +2608,7 @@ paths:
           in: path
           schema:
             type: string
+            maxLength: 100
           required: true
           description: "**Required** Id of the tracker, provided by Ship24 at creation. `clientTrackerId` can also be used in this field by employing the `searchBy` parameter."
           example: 26148317-7502-d3ac-44a9-546d240ac0dd

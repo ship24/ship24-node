@@ -43,9 +43,12 @@ The spec, the regenerated reference, and the code changes all go in one PR.
    git diff src/generated/schema.d.ts
    ```
 
-   If `pnpm generate` fails or the output looks wrong, the spec probably changed in a spot that
-   `scripts/clean-spec.ts` patches (the webhook example, the `/trackers/{trackerId}` envelope, the
-   `GET /trackers` content types). Ship24 may have fixed the bug upstream, so adjust or delete that patch.
+   `scripts/clean-spec.ts` throws when one of its patches (the `/trackers/{trackerId}` envelope, the
+   `GET /trackers` content types) no longer matches the spec. Ship24 may have fixed the bug upstream,
+   so adjust or delete that patch.
+
+   The generated types leave out validation constraints (`maxLength`, `pattern`, `minItems`, ...),
+   so also skim the raw diff (`git diff spec/`) and mirror new limits in the JSDoc of `src/types/requests.ts`.
 
 3. Classify every change using the table below.
 
@@ -58,7 +61,8 @@ The spec, the regenerated reference, and the code changes all go in one PR.
    pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm check:exports
    ```
 
-6. If the public surface changed, run `pnpm changeset`.
+6. If the public surface changed, run `pnpm changeset` then `pnpm changeset version` (see
+   `.changeset/README.md`).
 
 7. Open the PR with `Closes #<issue>` in the description.
 

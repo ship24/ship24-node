@@ -28,7 +28,16 @@ export interface ShipmentDelivery {
     from: LogisticDateTime | null;
     to: LogisticDateTime | null;
   } | null;
+  /**
+   * Delivery window predicted by Ship24. Requires the AI Predictive Delivery Date add-on;
+   * absent (not `null`) when not subscribed or when no prediction is available.
+   */
+  aiPredictiveDeliveryDate?: {
+    from?: LogisticDateTime | null;
+    to?: LogisticDateTime | null;
+  };
   service: string | null;
+  /** @deprecated Deprecated in the Ship24 API. */
   signedBy: string | null;
 }
 
@@ -103,6 +112,7 @@ export interface Courier {
 export interface WebhookMetadata {
   generatedAt: IsoDateTime;
   messageId: string;
+  /** `tracking/events` for tracking results, `tracking/pod` for proofs of delivery. */
   topic: string;
 }
 

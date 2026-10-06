@@ -272,8 +272,33 @@ export interface webhooks {
          * Receive webhooks - Tracking results
          * @description > This endpoint is **NOT** part of the Ship24 API but rather **has to be implemented on your side** in order to receive webhook messages.
          *     Ship24 will be pushing tracking results to your endpoint using a `trackings` array containing `tracking` objects. The `tracking` object is detailed below as well as in [Schemas > Tracking](/schemas/tracking). [Learn how to set up and use webhooks](https://docs.ship24.com/webhooks/overview).
+         *
+         *     > Note: `shipment.delivery.aiPredictiveDeliveryDate` is an [optional field](https://docs.ship24.com/data-format#optional-fields-add-on-options) and is absent from the payload unless you subscribed to its related add-on option.
          */
         post: operations["receive-webhooks-tracking-results"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/your-pod-endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive webhooks - Proof of Delivery
+         * @description > This endpoint is **NOT** part of the Ship24 API but rather **has to be implemented on your side** in order to receive webhook messages.
+         *     Ship24 pushes the proof of delivery of a shipment once retrieved from the courier, using a `trackings` array that always contains a single `tracking` object. [Learn more about Proof of Delivery webhooks](https://docs.ship24.com/webhooks/proof-of-delivery).
+         *
+         *     > 🛑 Requires the **Proof of Delivery** add-on option ([Subscriptions](https://dashboard.ship24.com/general/subscriptions)) and a _Proof of Delivery Webhook URL_ [configured in your dashboard](https://dashboard.ship24.com/integrations/webhook/).
+         */
+        post: operations["receive-webhooks-proof-of-delivery"];
         delete?: never;
         options?: never;
         head?: never;
@@ -322,6 +347,40 @@ export interface components {
              * @example true
              */
             isTracked: boolean;
+            /**
+             * Format: date-time
+             * @description The date and time at which the tracker was created.
+             * @example 2021-03-10T05:13:00.000Z
+             */
+            createdAt: string;
+        };
+        /** Webhook tracker */
+        "webhook-tracker": {
+            /**
+             * @description The id of the tracker that is providing this tracking.
+             * @example 26148317-7502-d3ac-44a9-546d240ac0dd
+             */
+            trackerId: string;
+            /**
+             * @description The tracking number which the tracker is following.
+             * @example 9400115901047177598206
+             */
+            trackingNumber: string;
+            /**
+             * @description The `shipmentReference` you provided at the tracker's creation.
+             * @example c6e4fef4-a816-b68f-4024-3b7e4c5a9f81
+             */
+            shipmentReference: string | null;
+            /**
+             * @description The `clientTrackerId` you provided at the tracker's creation.
+             * @example 3fa99515-3ca0-4901-85bb-056ee016799b
+             */
+            clientTrackerId: string | null;
+            /**
+             * @description Indicates whether the tracker is active. A value of `false` means the tracker is archived and will not be used for tracking.
+             * @example true
+             */
+            isSubscribed: boolean;
             /**
              * Format: date-time
              * @description The date and time at which the tracker was created.
@@ -646,7 +705,7 @@ export interface components {
              */
             messageId?: string;
             /**
-             * @description Topic of the webhook, which can be used to filter webhooks by topic.
+             * @description Topic of the webhook: `tracking/events` for tracking results, `tracking/pod` for proofs of delivery.
              * @example tracking/events
              */
             topic?: string;
@@ -705,11 +764,31 @@ export interface components {
                     to?: string | null;
                 } | null;
                 /**
+                 * @description Delivery date range predicted by Ship24 from the courier's historical performance on the shipment's route and current milestone.
+                 *
+                 *     > 🛑 Requires the **AI Predictive Delivery Date** add-on option ([Subscriptions](https://dashboard.ship24.com/general/subscriptions)). Absent from the payload, not `null`, when you are not subscribed or no prediction is available. See [optional fields](https://docs.ship24.com/data-format#optional-fields-add-on-options).
+                 */
+                aiPredictiveDeliveryDate?: {
+                    /**
+                     * Format: logistic-date-time
+                     * @description Earliest predicted delivery date, with its UTC offset. Format: [Logistics date and time](http://docs.ship24.com/data-format#logistics-date-and-time)
+                     * @example 2021-03-04T17:00:00+01:00
+                     */
+                    from?: string | null;
+                    /**
+                     * Format: logistic-date-time
+                     * @description Latest predicted delivery date, with its UTC offset. Format: [Logistics date and time](http://docs.ship24.com/data-format#logistics-date-and-time)
+                     * @example 2021-03-04T18:00:00+01:00
+                     */
+                    to?: string | null;
+                };
+                /**
                  * @description Name of logistics service or product for the shipment.
                  * @example Parcel Post
                  */
                 service?: string | null;
                 /**
+                 * @deprecated
                  * @description Name of the person who signed for the shipment.
                  * @example John Doe
                  */
@@ -901,12 +980,12 @@ export interface components {
             recipient?: {
                 /**
                  * Format: email
-                 * @description Recipient email, used for optional email notifications.
+                 * @description Recipient email. Used for email notifications.
                  * @example recipient@email.com
                  */
                 email?: string;
                 /**
-                 * @description Recipient name, used for optional email notifications.
+                 * @description Recipient name. Used for email notifications and courier-restricted tracking data.
                  * @example Marc
                  */
                 name?: string;
@@ -979,19 +1058,19 @@ export type $defs = Record<string, never>;
 export interface operations {
     "list-trackers": {
         parameters: {
-            query: {
+            query?: {
                 /**
-                 * @description The page index, starting from 1.
+                 * @description The page index.
                  * @example 1
                  */
-                page: number;
+                page?: number;
                 /**
                  * @description The maximum number of trackers returned per page.
                  * @example 100
                  */
-                limit: number;
+                limit?: number;
                 /**
-                 * @description Defines the sorting order of trackers. Use `1` for ascending (`createdAt` oldest first) and `-1` for descending (`createdAt` newest first). The default is ascending (`1`) to ensure stable pagination.
+                 * @description Defines the sorting order of trackers. Use `1` for ascending (oldest tracker first) and `-1` for descending (newest tracker first). The default is ascending (`1`) to ensure stable pagination.
                  * @example 1
                  */
                 sort?: 1 | -1;
@@ -1257,7 +1336,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        /** @description Only the following property can be updated on a Tracker: */
+        /** @description Only the following properties can be updated on a Tracker: */
         requestBody?: {
             content: {
                 "application/json": {
@@ -1299,6 +1378,24 @@ export interface operations {
                      * @example 2021-03-01T11:09:00+02:00
                      */
                     shippingDate?: string;
+                    /**
+                     * @description Courier name and/or service.
+                     * @example USPS Standard
+                     */
+                    courierName?: string;
+                    /**
+                     * @description Tracking URL of the courier.
+                     * @example https://tools.usps.com/go/TrackConfirmAction?tLabels=9400115901047177598206
+                     */
+                    trackingUrl?: string;
+                    /** @description Information on the recipient. Only the `name` property can be updated, `email` is not patchable. */
+                    recipient?: {
+                        /**
+                         * @description Recipient name. Used for email notifications and courier-restricted tracking data.
+                         * @example Marc
+                         */
+                        name?: string;
+                    };
                 };
             };
         };
@@ -1310,7 +1407,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         data?: {
-                            tracker?: components["schemas"]["tracker"];
+                            tracker?: components["schemas"]["tracker"] & {
+                                /** @description Information on the recipient. Only returned if a non-empty `recipient.name` was provided in the request. */
+                                recipient?: {
+                                    /**
+                                     * @description Recipient name.
+                                     * @example Marc
+                                     */
+                                    name?: string;
+                                };
+                            };
                         };
                     };
                 };
@@ -1515,7 +1621,7 @@ export interface operations {
                      * @description Tracking number of the shipment.
                      * @example 9400115901047177598206
                      */
-                    trackingNumber?: string;
+                    trackingNumber: string;
                     /**
                      * Format: ISO 3166-1 alpha-2/alpha-3
                      * @description Sender country code - 📌 Recommended to improve tracking accuracy
@@ -1542,8 +1648,13 @@ export interface operations {
                      * @example 2021-03-01T11:09:00+02:00
                      */
                     shippingDate?: string;
-                    /** @description Code of the courier(s) handling the shipment (Up to 3 max) (see Couriers list section)  - 📌 Recommended to improve tracking accuracy */
-                    courierCode?: unknown[] | string;
+                    /**
+                     * @description Code of the courier(s) handling the shipment (Up to 3 max) (see Couriers list section)  - 📌 Recommended to improve tracking accuracy
+                     * @example [
+                     *       "us-post"
+                     *     ]
+                     */
+                    courierCode?: string[] | string;
                 };
             };
         };
@@ -1759,10 +1870,67 @@ export interface operations {
                 "application/json": {
                     trackings?: {
                         metadata?: components["schemas"]["metadata"];
-                        tracker?: components["schemas"]["tracker"];
+                        tracker?: components["schemas"]["webhook-tracker"];
                         shipment?: components["schemas"]["shipment"];
                         events?: components["schemas"]["event"][];
                         statistics?: components["schemas"]["statistics"];
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Indicates that your server successfully processed Ship24's request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "receive-webhooks-proof-of-delivery": {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Ship24 will send your allocated webhook secret in each request.
+                 * @example Bearer your_webhook_secret
+                 */
+                Authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Ship24 will send the following JSON body: */
+        requestBody?: {
+            content: {
+                "application/json": {
+                    trackings?: {
+                        metadata?: components["schemas"]["metadata"];
+                        tracker?: components["schemas"]["webhook-tracker"];
+                        data?: {
+                            /**
+                             * @description `found` when a proof of delivery was retrieved, `unavailable` when the courier returned none.
+                             * @enum {string}
+                             */
+                            status?: "found" | "unavailable";
+                            /**
+                             * @description Internal code of the source the proof of delivery was retrieved from, same values as `sourceCode` in tracking events. Those codes may evolve at any point in time.
+                             * @example ups-tracking
+                             */
+                            courier?: string;
+                            content?: {
+                                /**
+                                 * @description MIME type of the proof of delivery. Text types carry it in `text`, the others as a file in `downloadUrl`.
+                                 * @enum {string}
+                                 */
+                                type?: "text/plain" | "text/html" | "application/pdf" | "image/png" | "image/jpeg";
+                                /** @description Signatory name or delivery note, for text types. */
+                                text?: string | null;
+                                /** @description Link to download the proof of delivery file, valid for 7 days. */
+                                downloadUrl?: string | null;
+                            };
+                        };
                     }[];
                 };
             };

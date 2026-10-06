@@ -1,6 +1,6 @@
 {
   "name": "ship24",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Official Node.js & TypeScript SDK for the Ship24 Tracking API",
   "type": "module",
   "license": "MIT",

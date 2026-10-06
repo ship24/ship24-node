@@ -1,2 +1,4 @@
-/** SDK version (kept in sync with `package.json` by the release process). */
-export const VERSION = '1.0.0';
+import { version } from '../package.json';
+
+/** SDK version, read from `package.json` at build time. */
+export const VERSION: string = version;

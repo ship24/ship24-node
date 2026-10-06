@@ -1,5 +1,7 @@
 export interface TrackerRecipientInput {
+  /** Max 254 chars. */
   email?: string;
+  /** Max 100 chars. */
   name?: string;
 }
 
@@ -15,19 +17,26 @@ export interface TrackerSettingsInput {
 export interface CreateTrackerRequest {
   /** Tracking number, 5–50 chars, matching `^[a-zA-Z0-9-_/.]*$`. */
   trackingNumber: string;
+  /** Max 100 chars. */
   shipmentReference?: string;
+  /** Max 100 chars. */
   clientTrackerId?: string;
-  /** ISO 3166-1 alpha-2/alpha-3. */
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   originCountryCode?: string;
-  /** ISO 3166-1 alpha-2/alpha-3. */
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   destinationCountryCode?: string;
+  /** 1–32 chars, matching `^[A-Za-z0-9 _\-\./]+$`. */
   destinationPostCode?: string;
   shippingDate?: string;
   /** Up to 3 courier codes. */
   courierCode?: string | string[];
+  /** Max 200 chars. */
   courierName?: string;
+  /** Max 1000 chars. */
   trackingUrl?: string;
+  /** Max 50 chars. */
   orderNumber?: string;
+  /** Max 255 chars. */
   title?: string;
   recipient?: TrackerRecipientInput;
   settings?: TrackerSettingsInput;
@@ -40,10 +49,14 @@ export interface CreateTrackerRequest {
  */
 export interface PerCallTrackRequest {
   trackingNumber: string;
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   originCountryCode?: string;
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   destinationCountryCode?: string;
+  /** 1–32 chars, matching `^[A-Za-z0-9 _\-\./]+$`. */
   destinationPostCode?: string;
   shippingDate?: string;
+  /** Up to 3 courier codes. */
   courierCode?: string | string[];
 }
 
@@ -57,10 +70,19 @@ export interface PerCallTrackRequest {
 export interface UpdateTrackerRequest {
   isSubscribed?: boolean;
   courierCode?: string | string[];
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   originCountryCode?: string;
+  /** ISO 3166-1 alpha-2/alpha-3, uppercase. */
   destinationCountryCode?: string;
+  /** 1–32 chars, matching `^[A-Za-z0-9 _\-\./]+$`. */
   destinationPostCode?: string;
   shippingDate?: string;
+  /** Max 200 chars. */
+  courierName?: string;
+  /** Max 1000 chars. */
+  trackingUrl?: string;
+  /** Only `name` can be updated; `email` is not patchable. */
+  recipient?: Pick<TrackerRecipientInput, 'name'>;
 }
 
 /** Query parameters for `trackers.list` (page-based pagination). */

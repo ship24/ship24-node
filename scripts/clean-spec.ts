@@ -13,8 +13,7 @@ const OUT = resolve('build/clean-spec.yaml');
  * which keeps the scheduled spec-drift diff honest (raw canonical vs raw vendored).
  */
 export function cleanSpec(src: string = SRC, out: string = OUT): void {
-  const raw = readFileSync(src, 'utf8');
-  const doc = parse(preClean(raw));
+  const doc = parse(readFileSync(src, 'utf8'));
 
   normalizeNullable(doc);
   fixTrackerByIdEnvelope(doc);
@@ -25,12 +24,13 @@ export function cleanSpec(src: string = SRC, out: string = OUT): void {
   console.log(`Cleaned spec written to ${out}`);
 }
 
-/** Fix the malformed JSON-in-YAML webhook example (raw JSON keys + trailing commas). */
-function preClean(raw: string): string {
-  return raw
-    .replace(/^(\s*)"hasNoTime":\s*false,\s*$/gm, '$1hasNoTime: false')
-    .replace(/^(\s*)"utcOffset":\s*null,\s*$/gm, '$1utcOffset: null')
-    .replace(/^(\s*)"datetime":\s*("[^"]*")\s*$/gm, '$1datetime: $2');
+/** Fails generation when a targeted fix no longer matches, instead of silently emitting wrong types. */
+function assertApplies(applies: boolean, fix: string): void {
+  if (!applies) {
+    throw new Error(
+      `clean-spec: ${fix} no longer matches the spec. Ship24 may have fixed it upstream; update or remove it in scripts/clean-spec.ts.`,
+    );
+  }
 }
 
 /** OAS 3.0 `nullable: true` → OAS 3.1 `type: [..., "null"]` unions (e.g. `event.status`). */
@@ -48,32 +48,33 @@ function normalizeNullable(node: any): void {
   for (const key of Object.keys(node)) normalizeNullable(node[key]);
 }
 
-/** GET/PATCH /trackers/{trackerId} declare the bare `tracker` schema; wrap it in `data`. */
+/**
+ * GET/PATCH /trackers/{trackerId} declare the bare `tracker` schema (PATCH extends it via
+ * `allOf`); wrap it in `data`.
+ */
 function fixTrackerByIdEnvelope(doc: any): void {
   const path = doc?.paths?.['/public/v1/trackers/{trackerId}'];
   for (const method of ['get', 'patch']) {
     const json = path?.[method]?.responses?.['200']?.content?.['application/json'];
-    const ref: unknown = json?.schema?.$ref;
-    if (typeof ref === 'string' && ref.endsWith('/tracker')) {
-      json.schema = {
-        type: 'object',
-        properties: {
-          data: {
-            type: 'object',
-            properties: { tracker: { $ref: '#/components/schemas/tracker' } },
-          },
-        },
-      };
-    }
+    const schema = json?.schema;
+    const ref: unknown = schema?.$ref ?? schema?.allOf?.[0]?.$ref;
+    assertApplies(
+      typeof ref === 'string' && ref.endsWith('/tracker'),
+      `fixTrackerByIdEnvelope (${method.toUpperCase()})`,
+    );
+    json.schema = {
+      type: 'object',
+      properties: { data: { type: 'object', properties: { tracker: schema } } },
+    };
   }
 }
 
 /** Remove the spurious xml/form-data response variants on GET /trackers. */
 function dropJunkContentTypes(doc: any): void {
   const content = doc?.paths?.['/public/v1/trackers']?.get?.responses?.['200']?.content;
-  if (content) {
-    delete content['application/xml'];
-    delete content['multipart/form-data'];
+  for (const type of ['application/xml', 'multipart/form-data']) {
+    assertApplies(content?.[type] !== undefined, `dropJunkContentTypes (${type})`);
+    delete content[type];
   }
 }
 

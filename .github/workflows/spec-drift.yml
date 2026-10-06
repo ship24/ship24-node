@@ -6,8 +6,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  issues: write
+
+env:
+  SPEC_URL: https://docs.ship24.com/assets/openapi/ship24-tracking-api.yaml
+  SPEC_PATH: spec/ship24-tracking-api.yaml
 
 jobs:
   drift:
@@ -15,21 +19,62 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Fetch the canonical spec
+        run: curl -fsSL "$SPEC_URL" -o "$SPEC_PATH"
+      - name: Diff against the vendored spec
+        id: diff
         run: |
-          curl -fsSL https://docs.ship24.com/assets/openapi/ship24-tracking-api.yaml \
-            -o spec/ship24-tracking-api.yaml
-      - name: Open a PR if the vendored spec drifted
-        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
-        with:
-          branch: chore/spec-drift
-          title: 'chore: sync vendored Ship24 OpenAPI spec'
-          commit-message: 'chore: sync vendored Ship24 OpenAPI spec'
-          labels: spec-drift
-          body: |
-            The canonical Ship24 OpenAPI spec differs from the vendored copy.
+          if git diff --quiet -- "$SPEC_PATH"; then
+            echo "Vendored spec matches the canonical spec."
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or update the drift issue
+        if: steps.diff.outputs.drifted == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DOC_URL: ${{ github.server_url }}/${{ github.repository }}/blob/main/docs/spec-drift.md
+        run: |
+          sha=$(sha256sum "$SPEC_PATH" | cut -d' ' -f1)
+          git diff -- "$SPEC_PATH" > spec.diff
+          note=''
+          # Issue bodies are capped at 65,536 characters.
+          if [ "$(wc -c < spec.diff)" -gt 60000 ]; then
+            head -c 60000 spec.diff | sed '$d' > spec.diff.tmp && mv spec.diff.tmp spec.diff
+            note=' (truncated, diff locally for the full version)'
+          fi
 
-            Reviewer checklist:
-            - [ ] `npm run generate` to refresh `src/generated/schema.d.ts` (drift reference)
-            - [ ] review the diff and reconcile the hand-written types in `src/types/*`
-            - [ ] update the resource facade if endpoints/params changed
-            - [ ] add a changeset if the public surface changes
+          # Five backticks: the spec's markdown descriptions can contain ``` fences.
+          {
+            echo "<!-- canonical-spec-sha256: $sha -->"
+            echo "The canonical Ship24 OpenAPI spec no longer matches the vendored \`$SPEC_PATH\`."
+            echo
+            echo "Fix it in a single PR by following $DOC_URL, and close this issue from that PR."
+            echo
+            echo "- Canonical spec: $SPEC_URL"
+            echo "- Detected by: $RUN_URL"
+            echo "- Change:$(git diff --shortstat -- "$SPEC_PATH")"
+            echo
+            echo "<details><summary>Raw spec diff$note</summary>"
+            echo
+            echo '`````diff'
+            cat spec.diff
+            echo '`````'
+            echo
+            echo '</details>'
+          } > body.md
+
+          gh label create spec-drift --color FBCA04 \
+            --description 'Vendored OpenAPI spec differs from the canonical one' --force
+          issue=$(gh issue list --label spec-drift --state open --json number --jq '.[0].number // empty')
+          if [ -z "$issue" ]; then
+            gh issue create --title 'Vendored Ship24 OpenAPI spec has drifted' \
+              --label spec-drift --body-file body.md
+          elif ! gh issue view "$issue" --json body --jq .body | grep -q "canonical-spec-sha256: $sha"; then
+            gh issue edit "$issue" --body-file body.md
+            gh issue comment "$issue" --body "The canonical spec changed again. The description now shows the latest diff ($RUN_URL)."
+          else
+            echo "Issue #$issue already reports this exact spec."
+          fi

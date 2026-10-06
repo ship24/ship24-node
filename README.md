@@ -163,8 +163,8 @@ npm run generate   # clean the vendored spec → openapi-typescript → src/gene
 ```
 
 `npm run generate` never fetches the spec over the network. A scheduled CI job diffs the canonical
-spec URL against the vendored copy and opens a PR when they differ — regeneration is always a
-reviewed step.
+spec URL against the vendored copy and opens an issue when they differ. See
+[docs/spec-drift.md](./docs/spec-drift.md) for how to handle it.
 
 ```bash
 npm run typecheck && npm run lint && npm test && npm run build && npm run check:exports
